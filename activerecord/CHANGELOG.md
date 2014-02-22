@@ -1,3 +1,516 @@
+*   Default scopes are no longer overriden by chained conditions.
+
+    Before this change when you defined a `default_scope` in a model
+    it was overriden by chained conditions in the same field. Now it
+    is merged like any other scope.
+
+    Before:
+
+        class User < ActiveRecord::Base
+          default_scope { where state: 'pending' }
+          scope :active, -> { where state: 'active' }
+          scope :inactive, -> { where state: 'inactive' }
+        end
+
+        User.all
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'pending'
+
+        User.active
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'active'
+
+        User.where(state: 'inactive')
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'inactive'
+
+    After:
+
+        class User < ActiveRecord::Base
+          default_scope { where state: 'pending' }
+          scope :active, -> { where state: 'active' }
+          scope :inactive, -> { where state: 'inactive' }
+        end
+
+        User.all
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'pending'
+
+        User.active
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'pending' AND "users"."state" = 'active'
+
+        User.where(state: 'inactive')
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'pending' AND "users"."state" = 'inactive'
+
+    To get the previous behavior it is needed to explicitly remove the
+    `default_scope` condition using `unscoped`, `unscope`, `rewhere` or
+    `except`.
+
+    Example:
+
+        class User < ActiveRecord::Base
+          default_scope { where state: 'pending' }
+          scope :active, -> { unscope(where: :state).where(state: 'active') }
+          scope :inactive, -> { rewhere state: 'inactive' }
+        end
+
+        User.all
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'pending'
+
+        User.active
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'active'
+
+        User.inactive
+        # SELECT "users".* FROM "users" WHERE "users"."state" = 'inactive'
+
+*   Perform necessary deeper encoding when hstore is inside an array.
+
+    Fixes #11135.
+
+    *Josh Goodall*, *Genadi Samokovarov*
+
+*   Properly detect if a connection is still active before using it
+    in multi-threaded environments.
+
+    Fixes #12867.
+
+    *Kevin Casey*, *Matthew Draper*, *William (B.J.) Snow Orvis*
+
+*   When inverting add_index use the index name if present instead of
+    the columns.
+
+    If there are two indices with matching columns and one of them is
+    explicitly named then reverting the migration adding the named one
+    would instead drop the unnamed one.
+
+    The inversion of add_index will now drop the index by its name if
+    it is present.
+
+    *Hubert Dąbrowski*
+
+*   Add flag to disable schema dump after migration.
+
+    Add a config parameter on Active Record named `dump_schema_after_migration`
+    which is true by default. Now schema dump does not happen at the
+    end of migration rake task if `dump_schema_after_migration` is false.
+
+    *Emil Soman*
+
+*   `find_in_batches`, `find_each`, `Result#each` and `Enumerable#index_by` now
+    return an `Enumerator` that can calculate its size.
+
+    See also #13938.
+
+    *Marc-André Lafortune*
+
+*   Make sure transaction state gets reset after a commit operation on the record.
+
+    If a new transaction was open inside a callback, the record was loosing track
+    of the transaction level state, and it was leaking that state.
+
+    Fixes #12566.
+
+    *arthurnn*
+
+*   Pass `has_and_belongs_to_many` `:autosave` option to
+    the underlying `has_many :through` association.
+
+    Fixes #13923.
+
+    *Yves Senn*
+
+*   PostgreSQL implementation of `SchemaStatements#index_name_exists?`.
+
+    The database agnostic implementation does not detect with indexes that are
+    not supported by the ActiveRecord schema dumper. For example, expressions
+    indexes would not be detected.
+
+    Fixes #11018.
+
+    *Jonathan Baudanza*
+
+*   Parsing PostgreSQL arrays with empty strings now works correctly.
+
+    Previously, if you tried to parse `{"1","","2","","3"}` the result
+    would be `["1","2","3"]`, removing the empty strings from the array,
+    which would be incorrect. Now it will correctly produce `["1","","2","","3"]`
+    as the result of parsing the above PostgreSQL array.
+
+    Fixes #13907.
+
+    *Maurício Linhares*
+
+*   Associations now raise `ArgumentError` on name conflicts.
+
+    Dangerous association names conflicts include instance or class methods already
+    defined by `ActiveRecord::Base`.
+
+    Example:
+
+        class Car < ActiveRecord::Base
+          has_many :errors
+        end
+        # Will raise ArgumentError.
+
+    Fixes #13217.
+
+    *Lauro Caetano*
+
+*   Fix regressions on `select_*` methods.
+    When `select_*` methods receive a `Relation` object, they should be able to
+    get the arel/binds from it.
+    Also fix regressions on `select_rows` that was ignoring the binds.
+
+    Fixes #7538, #12017, #13731, #12056.
+
+    *arthurnn*
+
+*   Active Record objects can now be correctly dumped, loaded and dumped again
+    without issues.
+
+    Previously, if you did `YAML.dump`, `YAML.load` and then `YAML.dump` again
+    in an Active Record model that used serialization it would fail at the last
+    dump due to the fields not being correctly serialized before being dumped
+    to YAML. Now it is possible to dump and load the same object as many times
+    as needed without any issues.
+
+    Fixes #13861.
+
+    *Maurício Linhares*
+
+*   `find_in_batches` now returns an `Enumerator` when called without a block, so that it
+    can be chained with other `Enumerable` methods.
+
+    *Marc-André Lafortune*
+
+*   `enum` now raises on "dangerous" name conflicts.
+
+    Dangerous name conflicts includes instance or class method conflicts
+    with methods defined within `ActiveRecord::Base` but not its ancestors,
+    as well as conflicts with methods generated by other enums on the same
+    class.
+
+    Fixes #13389.
+
+    *Godfrey Chan*
+
+*   `scope` now raises on "dangerous" name conflicts.
+
+    Similar to dangerous attribute methods, a scope name conflict is
+    dangerous if it conflicts with an existing class method defined within
+    `ActiveRecord::Base` but not its ancestors.
+
+    See also #13389.
+
+    *Godfrey Chan*, *Philippe Creux*
+
+*   Correctly send an user provided statement to a `lock!()` call.
+
+        person.lock! 'FOR SHARE NOWAIT'
+        # Before: SELECT * ... LIMIT 1 FOR UPDATE
+        # After: SELECT * ... LIMIT 1 FOR SHARE NOWAIT
+
+    Fixes #13788.
+
+    *Maurício Linhares*
+
+*   Handle aliased attributes `select()`, `order()` and `reorder()`.
+
+    *Tsutomu Kuroda*
+
+*   Reset the collection association when calling `reset` on it.
+
+    Before:
+
+        post.comments.loaded? # => true
+        post.comments.reset
+        post.comments.loaded? # => true
+
+    After:
+
+        post.comments.loaded? # => true
+        post.comments.reset
+        post.comments.loaded? # => false
+
+    Fixes #13777.
+
+    *Kelsey Schlarman*
+
+*   Make enum fields work as expected with the `ActiveModel::Dirty` API.
+
+    Before this change, using the dirty API would have surprising results:
+
+        conversation = Conversation.new
+        conversation.status = :active
+        conversation.status = :archived
+        conversation.status_was # => 0
+
+    After this change, the same code would result in:
+
+        conversation = Conversation.new
+        conversation.status = :active
+        conversation.status = :archived
+        conversation.status_was # => "active"
+
+    *Rafael Mendonça França*
+
+*   `has_one` and `belongs_to` accessors don't add ORDER BY to the queries
+    anymore.
+
+    Since Rails 4.0, we add an ORDER BY in the `first` method to ensure
+    consistent results among different database engines. But for singular
+    associations this behavior is not needed since we will have one record to
+    return. As this ORDER BY option can lead some performance issues we are
+    removing it for singular associations accessors.
+
+    Fixes #12623.
+
+    *Rafael Mendonça França*
+
+*   Prepend table name for column names passed to `Relation#select`.
+
+    Example:
+
+        Post.select(:id)
+        # Before: => SELECT id FROM "posts"
+        # After: => SELECT "posts"."id" FROM "posts"
+
+    *Yves Senn*
+
+*   Fail early with "Primary key not included in the custom select clause"
+    in `find_in_batches`.
+
+    Before this patch, the exception was raised after the first batch was
+    yielded to the block. This means that you only get it, when you hit the
+    `batch_size` treshold. This could shadow the issue in development.
+
+    *Alexander Balashov*
+
+*   Ensure `second` through `fifth` methods act like the `first` finder.
+
+    The famous ordinal Array instance methods defined in ActiveSupport
+    (`first`, `second`, `third`, `fourth`, and `fifth`) are now available as
+    full-fledged finders in ActiveRecord. The biggest benefit of this is ordering
+    of the records returned now defaults to the table's primary key in ascending order.
+
+    Fixes #13743.
+
+    Example:
+
+        User.all.second
+
+        # Before
+        # => 'SELECT  "users".* FROM "users"'
+
+        # After
+        # => SELECT  "users".* FROM "users"   ORDER BY "users"."id" ASC LIMIT 1 OFFSET 1'
+
+        User.offset(3).second
+
+        # Before
+        # => 'SELECT "users".* FROM "users"  LIMIT -1 OFFSET 3' # sqlite3 gem
+        # => 'SELECT "users".* FROM "users"  OFFSET 3' # pg gem
+        # => 'SELECT `users`.* FROM `users`  LIMIT 18446744073709551615 OFFSET 3' # mysql2 gem
+
+        # After
+        # => SELECT  "users".* FROM "users"   ORDER BY "users"."id" ASC LIMIT 1 OFFSET 4'
+
+    *Jason Meller*
+
+*   ActiveRecord states are now correctly restored after a rollback for
+    models that did not define any transactional callbacks (i.e.
+    `after_commit`, `after_rollback` or `after_create`).
+
+    Fixes #13744.
+
+    *Godfrey Chan*
+
+*   Make `touch` fire the `after_commit` and `after_rollback` callbacks.
+
+    *Harry Brundage*
+
+*   Enable partial indexes for `sqlite >= 3.8.0`.
+
+    See http://www.sqlite.org/partialindex.html
+
+    *Cody Cutrer*
+
+*   Don't try to get the subclass if the inheritance column doesn't exist
+
+    The `subclass_from_attrs` method is called even if the column specified by
+    the `inheritance_column` setting doesn't exist. This prevents setting associations
+    via the attributes hash if the association name clashes with the value of the setting,
+    typically `:type`. This worked previously in Rails 3.2.
+
+    *Ujjwal Thaakar*
+
+*   Enum mappings are now exposed via class methods instead of constants.
+
+    Example:
+
+        class Conversation < ActiveRecord::Base
+          enum status: [ :active, :archived ]
+        end
+
+    Before:
+
+        Conversation::STATUS # => { "active" => 0, "archived" => 1 }
+
+    After:
+
+        Conversation.statuses # => { "active" => 0, "archived" => 1 }
+
+    *Godfrey Chan*
+
+*   Set `NameError#name` when STI-class-lookup fails.
+
+    *Chulki Lee*
+
+*   Fix bug in `becomes!` when changing from the base model to a STI sub-class.
+
+    Fixes #13272.
+
+    *the-web-dev*, *Yves Senn*
+
+*   Currently Active Record can be configured via the environment variable
+    `DATABASE_URL` or by manually injecting a hash of values which is what Rails does,
+    reading in `database.yml` and setting Active Record appropriately. Active Record
+    expects to be able to use `DATABASE_URL` without the use of Rails, and we cannot
+    rip out this functionality without deprecating. This presents a problem though
+    when both config is set, and a `DATABASE_URL` is present. Currently the
+    `DATABASE_URL` should "win" and none of the values in `database.yml` are
+    used. This is somewhat unexpected, if one were to set values such as
+    `pool` in the `production:` group of `database.yml` they are ignored.
+
+    There are many ways that Active Record initiates a connection today:
+
+    - Stand Alone (without rails)
+      - `rake db:<tasks>`
+      - `ActiveRecord.establish_connection`
+
+    - With Rails
+      - `rake db:<tasks>`
+      - `rails <server> | <console>`
+      - `rails dbconsole`
+
+    Now all of these behave exactly the same way. The best way to do
+    this is to put all of this logic in one place so it is guaranteed to be used.
+
+    Here is the matrix of how this behavior works:
+
+    ```
+    No database.yml
+    No DATABASE_URL
+    => Error
+    ```
+
+    ```
+    database.yml present
+    No DATABASE_URL
+    => Use database.yml configuration
+    ```
+
+    ```
+    No database.yml
+    DATABASE_URL present
+    => use DATABASE_URL configuration
+    ```
+
+    ```
+    database.yml present
+    DATABASE_URL present
+    => Merged into `url` sub key. If both specify `url` sub key, the `database.yml` `url`
+       sub key "wins". If other paramaters `adapter` or `database` are specified in YAML,
+       they are discarded as the `url` sub key "wins".
+    ```
+
+    Current implementation uses `ActiveRecord::Base.configurations` to resolve and merge
+    all connection information before returning. This is achieved through a utility
+    class: `ActiveRecord::ConnectionHandling::MergeAndResolveDefaultUrlConfig`.
+
+    To understand the exact behavior of this class, it is best to review the
+    behavior in `activerecord/test/cases/connection_adapters/connection_handler_test.rb`.
+
+    *Richard Schneeman*
+
+*   Make `change_column_null` revertable. Fixes #13576.
+
+    *Yves Senn*, *Nishant Modak*, *Prathamesh Sonpatki*
+
+*   Don't create/drop the test database if RAILS_ENV is specified explicitly.
+
+    Previously, when the environment was development, we would always
+    create or drop both the test and development databases.
+
+    Now, if RAILS_ENV is explicitly defined as development, we don't create
+    the test database.
+
+    *Damien Mathieu*
+
+*   Initialize version on Migration objects so that it can be used in a migration,
+    and it will be included in the announce message.
+
+    *Dylan Thacker-Smith*
+
+*   `change_table` now uses the current adapter's `update_table_definition`
+    method to retrieve a specific table definition.
+    This ensures that `change_table` and `create_table` will use
+    similar objects.
+
+    Fixes #13577, #13503.
+
+    *Nishant Modak*, *Prathamesh Sonpatki*, *Rafael Mendonça França*
+
+*   Fixed ActiveRecord::Store nil conversion TypeError when using YAML coder.
+    In case the YAML passed as paramter is nil, uses an empty string.
+
+    Fixes #13570.
+
+    *Thales Oliveira*
+
+*   Deprecate unused `ActiveRecord::Base.symbolized_base_class`
+    and `ActiveRecord::Base.symbolized_sti_name` without replacement.
+
+    *Yves Senn*
+
+*   Since the `test_help.rb` file in Railties now automatically maintains
+    your test schema, the `rake db:test:*` tasks are deprecated. This
+    doesn't stop you manually running other tasks on your test database
+    if needed:
+
+        rake db:schema:load RAILS_ENV=test
+
+    *Jon Leighton*
+
+*   Fix presence validator for association when the associated record responds to `to_a`.
+
+    *gmarik*
+
+*   Fixed regression on preload/includes with multiple arguments failing in certain conditions,
+    raising a NoMethodError internally by calling `reflect_on_association` for `NilClass:Class`.
+
+    Fixes #13437.
+
+    *Vipul A M*, *khustochka*
+
+*   Add the ability to nullify the `enum` column.
+
+     Example:
+
+         class Conversation < ActiveRecord::Base
+           enum gender: [:female, :male]
+         end
+
+         Conversation::GENDER # => { female: 0, male: 1 }
+
+         # conversation.update! gender: 0
+         conversation.female!
+         conversation.female? # => true
+         conversation.gender  # => "female"
+
+         # conversation.update! gender: nil
+         conversation.gender = nil
+         conversation.gender.nil? # => true
+         conversation.gender      # => nil
+
+     *Amr Tamimi*
+
 *   Connection specification now accepts a "url" key. The value of this
     key is expected to contain a database URL. The database URL will be
     expanded into a hash and merged.
@@ -55,7 +568,7 @@
 
     *Richard Schneeman*
 
-*   Do not raise `'can not touch on a new record object'` exception on destroying
+*   Do not raise `'cannot touch on a new record object'` exception on destroying
     already destroyed `belongs_to` association with `touch: true` option.
 
     Fixes #13445.
@@ -81,22 +594,6 @@
 
     *Damien Mathieu*
 
-*   Improve the default select when `from` is used.
-
-    Previously, if you did something like Topic.from(:temp_topics), it
-    would generate SQL like:
-
-        SELECT topics.* FROM temp_topics;
-
-    Which is will cause an error since there's not a topics table to select
-    from.
-
-    Now the default if you use from is just `*`:
-
-        SELECT * FROM temp_topics;
-
-    *Cody Cutrer*
-
 *   Fix `PostgreSQL` insert to properly extract table name from multiline string SQL.
 
     Previously, executing an insert SQL in `PostgreSQL` with a command like this:
@@ -111,6 +608,10 @@
     table name.
 
     *Kuldeep Aggarwal*
+
+*   Correctly escape PostgreSQL arrays.
+
+    Fixes: CVE-2014-0080
 
 *   `Relation` no longer has mutator methods like `#map!` and `#delete_if`. Convert
     to an `Array` by calling `#to_a` before using these methods.
@@ -258,7 +759,7 @@
     *kostya*, *Lauro Caetano*
 
 *   `type_to_sql` returns a `String` for unmapped columns. This fixes an error
-    when using unmapped array types in PG
+    when using unmapped PostgreSQL array types.
 
     Example:
 
@@ -297,7 +798,7 @@
 
 *   Update counter cache on a `has_many` relationship regardless of default scope.
 
-    Fix #12952.
+    Fixes #12952.
 
     *Uku Taht*
 
@@ -308,9 +809,10 @@
 
     *Cody Cutrer*, *Yves Senn*
 
-*   Raise `ActiveRecord::RecordNotDestroyed` when a replaced child marked with `dependent: destroy` fails to be destroyed.
+*   Raise `ActiveRecord::RecordNotDestroyed` when a replaced child
+    marked with `dependent: destroy` fails to be destroyed.
 
-    Fix #12812
+    Fixes #12812.
 
     *Brian Thomas Storti*
 
@@ -484,7 +986,7 @@
 
     *Severin Schoepke*
 
-*   `ActiveRecord::Store` works together with PG `hstore` columns.
+*   `ActiveRecord::Store` works together with PostgreSQL `hstore` columns.
 
     Fixes #12452.
 
@@ -770,7 +1272,7 @@
 
     *Yves Senn* , *Severin Schoepke*
 
-*   Fix multidimensional PG arrays containing non-string items.
+*   Fix multidimensional PostgreSQL arrays containing non-string items.
 
     *Yves Senn*
 
@@ -788,7 +1290,7 @@
 
     *Richard Schneeman*
 
-*   Removed redundant override of `xml` column definition for PG,
+*   Removed redundant override of `xml` column definition for PostgreSQL,
     in order to use `xml` column type instead of `text`.
 
     *Paul Nikitochkin*, *Michael Nikitochkin*
@@ -1199,7 +1701,7 @@
 
     *John Wang*
 
-*   Fix `add_column` with `array` option when using PostgreSQL. Fixes #10432
+*   Fix `add_column` with `array` option when using PostgreSQL. Fixes #10432.
 
     *Adam Anderson*
 
@@ -1216,6 +1718,7 @@
     *Yves Senn*
 
 *   Fix the `:primary_key` option for `has_many` associations.
+
     Fixes #10693.
 
     *Yves Senn*
@@ -1340,7 +1843,7 @@
 
 *   Trigger a save on `has_one association=(associate)` when the associate contents have changed.
 
-    Fix #8856.
+    Fixes #8856.
 
     *Chris Thompson*
 

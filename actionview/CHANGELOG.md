@@ -1,10 +1,53 @@
-*   The `video_tag` helper accepts a number as `:size`
+*   Added `:plain`, `:html` and `:body` option for `render` method. Please see
+    Action Pack's release note for more detail.
+
+    *Prem Sichanugrist*
+
+*   Date select helpers accept a format string for the months selector via the
+    new option `:month_format_string`.
+
+    When rendered, the format string gets passed keys `:number` (integer), and
+    `:name` (string), in order to be able to interpolate them as in
+
+        '%{name} (%<number>02d)'
+
+    for example.
+
+    This option is motivated by #13618.
+
+    *Xavier Noria*
+
+*   Added `config.action_view.raise_on_missing_translations` to define whether an
+    error should be raised for missing translations.
+
+    Fixes #13196.
+
+    *Kassio Borges*
+
+*   Improved ERB dependency detection. New argument types and formattings for the `render`
+    calls can be matched.
+
+    Fixes #13074, #13116.
+
+    *João Britto*
+
+*   Use `display:none` instead of `display:inline` for hidden fields.
+
+    Fixes #6403.
+
+    *Gaelian Ditchburn*
+
+*   The `video_tag` helper accepts a number as `:size`.
 
     The `:size` option of the `video_tag` helper now can be specified
     with a stringified number. The `width` and `height` attributes of
     the generated tag will be the same.
 
     *Kuldeep Aggarwal*
+
+*   Escape format, negative_format and units options of number helpers
+
+    Fixes: CVE-2014-0081
 
 *   A Cycle object should accept an array and cycle through it as it would with a set of
     comma-separated objects.
@@ -62,11 +105,11 @@
 
     *Yves Senn*
 
-*   Use `set_backtrace` instead of instance variable `@backtrace` in ActionView exceptions
+*   Use `set_backtrace` instead of instance variable `@backtrace` in ActionView exceptions.
 
     *Shimpei Makimoto*
 
-*   Fix `simple_format` escapes own output when passing `sanitize: true`
+*   Fix `simple_format` escapes own output when passing `sanitize: true`.
 
     *Paul Seidemann*
 
@@ -84,7 +127,9 @@
 
     *Bogdan Gusiev*
 
-*   Ability to pass block to `select` helper
+*   Ability to pass a block to the `select` helper.
+
+    Example:
 
         <%= select(report, "campaign_ids") do %>
           <% available_campaigns.each do |c| -%>
@@ -164,7 +209,7 @@
 *   Fix default rendered format problem when calling `render` without :content_type option.
     It should return :html. Fix #11393.
 
-    *Gleb Mazovetskiy* *Oleg* *kennyj*
+    *Gleb Mazovetskiy*, *Oleg*, *kennyj*
 
 *   Fix `link_to` with block and url hashes.
 

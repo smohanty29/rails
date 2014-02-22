@@ -1,6 +1,33 @@
-*   `attribute_changed?` now accepts parameters which check the old and new value of the attribute
+*   `#to_param` returns `nil` if `#to_key` returns `nil`. Fixes #11399.
 
-    `model.name_changed?(from: "Pete", to: "Ringo")`
+    *Yves Senn*
+
+*   Ability to specify multiple contexts when defining a validation.
+
+    Example:
+
+        class Person
+          include ActiveModel::Validations
+
+          attr_reader :name
+          validates_presence_of :name, on: [:verify, :approve]
+        end
+
+        person = Person.new
+        person.valid?                           # => true
+        person.valid?(:verify)                  # => false
+        person.errors.full_messages_for(:name)  # => ["Name can't be blank"]
+        person.valid?(:approve)                 # => false
+        person.errors.full_messages_for(:name)  # => ["Name can't be blank"]
+
+    *Vince Puzzella*
+
+*   `attribute_changed?` now accepts a hash to check if the attribute was
+    changed `:from` and/or `:to` a given value.
+
+    Example:
+
+        model.name_changed?(from: "Pete", to: "Ringo")
 
     *Tejas Dinkar*
 
@@ -19,8 +46,8 @@
 
     *Bogdan Gusiev*
 
-*   Fix has_secure_password. `password_confirmation` validations are triggered
-    even if no `password_confirmation` is set.
+*   Fix `has_secure_password` not to trigger `password_confirmation` validations
+    if no `password_confirmation` is set.
 
     *Vladimir Kiselev*
 
@@ -33,7 +60,7 @@
 
     *Charles Bergeron*
 
-*   Fix regression in has_secure_password. When a password is set, but a
+*   Fix regression in `has_secure_password`. When a password is set, but a
     confirmation is an empty string, it would incorrectly save.
 
     *Steve Klabnik* and *Phillip Calvin*

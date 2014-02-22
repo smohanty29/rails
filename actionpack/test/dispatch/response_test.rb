@@ -217,6 +217,32 @@ class ResponseTest < ActiveSupport::TestCase
     assert_not @response.respond_to?(:method_missing)
     assert @response.respond_to?(:method_missing, true)
   end
+
+  test "can be destructured into status, headers and an enumerable body" do
+    response = ActionDispatch::Response.new(404, { 'Content-Type' => 'text/plain' }, ['Not Found'])
+    status, headers, body = response
+
+    assert_equal 404, status
+    assert_equal({ 'Content-Type' => 'text/plain' }, headers)
+    assert_equal ['Not Found'], body.each.to_a
+  end
+
+  test "[response].flatten does not recurse infinitely" do
+    Timeout.timeout(1) do # use a timeout to prevent it stalling indefinitely
+      status, headers, body = [@response].flatten
+      assert_equal @response.status, status
+      assert_equal @response.headers, headers
+      assert_equal @response.body, body.each.to_a.join
+    end
+  end
+
+  test "does not add default content-type if Content-Type is none" do
+    resp = ActionDispatch::Response.new.tap { |response|
+      response.no_content_type = true
+    }
+
+    assert_not resp.headers.has_key?('Content-Type')
+  end
 end
 
 class ResponseIntegrationTest < ActionDispatch::IntegrationTest

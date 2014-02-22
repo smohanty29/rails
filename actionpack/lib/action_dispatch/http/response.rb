@@ -1,4 +1,5 @@
 require 'active_support/core_ext/module/attribute_accessors'
+require 'action_dispatch/http/filter_redirect'
 require 'monitor'
 
 module ActionDispatch # :nodoc:
@@ -61,6 +62,8 @@ module ActionDispatch # :nodoc:
     # The charset of the response. HTML wants to know the encoding of the
     # content you're giving them, so we need to send that along.
     attr_accessor :charset
+
+    attr_accessor :no_content_type # :nodoc:
 
     CONTENT_TYPE = "Content-Type".freeze
     SET_COOKIE   = "Set-Cookie".freeze
@@ -302,8 +305,17 @@ module ActionDispatch # :nodoc:
       !@sending_file && @charset != false
     end
 
+    def remove_content_type!
+      headers.delete CONTENT_TYPE
+    end
+
     def rack_response(status, header)
-      assign_default_content_type_and_charset!(header)
+      if no_content_type
+        remove_content_type!
+      else
+        assign_default_content_type_and_charset!(header)
+      end
+
       handle_conditional_get!
 
       header[SET_COOKIE] = header[SET_COOKIE].join("\n") if header[SET_COOKIE].respond_to?(:join)
@@ -312,7 +324,7 @@ module ActionDispatch # :nodoc:
         header.delete CONTENT_TYPE
         [status, header, []]
       else
-        [status, header, self]
+        [status, header, Rack::BodyProxy.new(self){}]
       end
     end
   end

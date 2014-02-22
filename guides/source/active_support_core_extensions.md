@@ -1403,6 +1403,8 @@ The third argument, `indent_empty_lines`, is a flag that says whether empty line
 
 The `indent!` method performs indentation in-place.
 
+NOTE: Defined in `active_support/core_ext/string/indent.rb`.
+
 ### Access
 
 #### `at(position)`
@@ -2906,6 +2908,16 @@ The method `with_indifferent_access` returns an `ActiveSupport::HashWithIndiffer
 ```
 
 NOTE: Defined in `active_support/core_ext/hash/indifferent_access.rb`.
+
+### Compacting
+
+The methods `compact` and `compact!` return a Hash without items with `nil` value. 
+
+```ruby
+{a: 1, b: 2, c: nil}.compact # => {a: 1, b: 2}
+```
+
+NOTE: Defined in `active_support/core_ext/hash/compact.rb`.
 
 Extensions to `Regexp`
 ----------------------

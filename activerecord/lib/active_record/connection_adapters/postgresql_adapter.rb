@@ -586,9 +586,14 @@ module ActiveRecord
 
       # Is this connection alive and ready for queries?
       def active?
-        @connection.connect_poll != PG::PGRES_POLLING_FAILED
+        @connection.query 'SELECT 1'
+        true
       rescue PGError
         false
+      end
+
+      def active_threadsafe?
+        @connection.connect_poll != PG::PGRES_POLLING_FAILED
       end
 
       # Close then reopen the connection.
@@ -721,6 +726,10 @@ module ActiveRecord
         !native_database_types[type].nil?
       end
 
+      def update_table_definition(table_name, base) #:nodoc:
+        Table.new(table_name, base)
+      end
+
       protected
 
         # Returns the version of the connected PostgreSQL server.
@@ -800,7 +809,7 @@ module ActiveRecord
           end
         end
 
-        FEATURE_NOT_SUPPORTED = "0A000" # :nodoc:
+        FEATURE_NOT_SUPPORTED = "0A000" #:nodoc:
 
         def exec_no_cache(sql, name, binds)
           log(sql, name, binds) { @connection.async_exec(sql) }
@@ -849,7 +858,11 @@ module ActiveRecord
           sql_key = sql_key(sql)
           unless @statements.key? sql_key
             nextkey = @statements.next_key
-            @connection.prepare nextkey, sql
+            begin
+              @connection.prepare nextkey, sql
+            rescue => e
+              raise translate_exception_class(e, sql)
+            end
             # Clear the queue
             @connection.get_last_result
             @statements[sql_key] = nextkey
@@ -934,14 +947,6 @@ module ActiveRecord
           exec_query(sql, name, binds)
         end
 
-        def select_raw(sql, name = nil)
-          res = execute(sql, name)
-          results = result_as_array(res)
-          fields = res.fields
-          res.clear
-          return fields, results
-        end
-
         # Returns the list of a table's column names, data types, and default values.
         #
         # The underlying query is roughly:
@@ -989,10 +994,6 @@ module ActiveRecord
 
         def create_table_definition(name, temporary, options, as = nil)
           TableDefinition.new native_database_types, name, temporary, options, as
-        end
-
-        def update_table_definition(table_name, base)
-          Table.new(table_name, base)
         end
     end
   end

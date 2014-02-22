@@ -9,7 +9,7 @@ gem 'mocha', '~> 0.14', require: false
 
 gem 'rack-cache', '~> 1.2'
 gem 'bcrypt-ruby', '~> 3.1.2'
-gem 'jquery-rails', '~> 2.2.0'
+gem 'jquery-rails', '~> 3.1.0'
 gem 'turbolinks'
 gem 'coffee-rails', '~> 4.0.0'
 
@@ -18,7 +18,7 @@ gem 'coffee-rails', '~> 4.0.0'
 gem 'uglifier', '>= 1.3.0', require: false
 
 group :doc do
-  gem 'sdoc'
+  gem 'sdoc', '~> 0.4.0'
   gem 'redcarpet', '~> 2.2.2', platforms: :ruby
   gem 'w3c_validators'
   gem 'kindlerb'
@@ -74,11 +74,6 @@ platforms :jruby do
       gem 'activerecord-jdbcpostgresql-adapter', '>= 1.3.0'
     end
   end
-end
-
-platforms :rbx do
-  gem 'psych', '~> 2.0'
-  gem 'rubysl', '~> 2.0'
 end
 
 # gems that are necessary for ActiveRecord tests with Oracle database

@@ -81,7 +81,7 @@ Here are some general guidelines on sessions.
 * _Do not store large objects in a session_. Instead you should store them in the database and save their id in the session. This will eliminate synchronization headaches and it won't fill up your session storage space (depending on what session storage you chose, see below).
 This will also be a good idea, if you modify the structure of an object and old versions of it are still in some user's cookies. With server-side session storages you can clear out the sessions, but with client-side storages, this is hard to mitigate.
 
-* _Critical data should not be stored in session_. If the user clears his cookies or closes the browser, they will be lost. And with a client-side session storage, the user can read the data.
+* _Critical data should not be stored in session_. If the user clears their cookies or closes the browser, they will be lost. And with a client-side session storage, the user can read the data.
 
 ### Session Storage
 
@@ -150,7 +150,7 @@ Another countermeasure is to _save user-specific properties in the session_, ver
 
 ### Session Expiry
 
-NOTE: _Sessions that never expire extend the time-frame for attacks such as cross-site reference forgery (CSRF), session hijacking and session fixation._
+NOTE: _Sessions that never expire extend the time-frame for attacks such as cross-site request forgery (CSRF), session hijacking and session fixation._
 
 One possibility is to set the expiry time-stamp of the cookie with the session id. However the client can edit cookies that are stored in the web browser so expiring sessions on the server is safer. Here is an example of how to _expire sessions in a database table_. Call `Session.sweep("20 minutes")` to expire sessions that were used longer than 20 minutes ago.
 
@@ -354,7 +354,7 @@ Having one single place in the admin interface or Intranet, where the input has 
 
 Refer to the Injection section for countermeasures against XSS. It is _recommended to use the SafeErb plugin_ also in an Intranet or administration interface.
 
-**CSRF** Cross-Site Reference Forgery (CSRF) is a gigantic attack method, it allows the attacker to do everything the administrator or Intranet user may do. As you have already seen above how CSRF works, here are a few examples of what attackers can do in the Intranet or admin interface.
+**CSRF** Cross-Site Request Forgery (CSRF), also known as Cross-Site Reference Forgery (XSRF), is a gigantic attack method, it allows the attacker to do everything the administrator or Intranet user may do. As you have already seen above how CSRF works, here are a few examples of what attackers can do in the Intranet or admin interface.
 
 A real-world example is a [router reconfiguration by CSRF](http://www.h-online.com/security/Symantec-reports-first-active-attack-on-a-DSL-router--/news/102352). The attackers sent a malicious e-mail, with CSRF in it, to Mexican users. The e-mail claimed there was an e-card waiting for them, but it also contained an image tag that resulted in a HTTP-GET request to reconfigure the user's router (which is a popular model in Mexico). The request changed the DNS-settings so that requests to a Mexico-based banking site would be mapped to the attacker's site. Everyone who accessed the banking site through that router saw the attacker's fake web site and had their credentials stolen.
 
@@ -549,7 +549,7 @@ Injection is very tricky, because the same code or parameter can be malicious in
 
 ### Whitelists versus Blacklists
 
-NOTE: _When sanitizing, protecting or verifying something, whitelists over blacklists._
+NOTE: _When sanitizing, protecting or verifying something, prefer whitelists over blacklists._
 
 A blacklist can be a list of bad e-mail addresses, non-public actions or bad HTML tags. This is opposed to a whitelist which lists the good e-mail addresses, public actions, good HTML tags and so on. Although sometimes it is not possible to create a whitelist (in a SPAM filter, for example), _prefer to use whitelist approaches_:
 
@@ -915,6 +915,49 @@ Content-Type: text/html
 
 Under certain circumstances this would present the malicious HTML to the victim. However, this only seems to work with Keep-Alive connections (and many browsers are using one-time connections). But you can't rely on this. _In any case this is a serious bug, and you should update your Rails to version 2.0.5 or 2.1.2 to eliminate Header Injection (and thus response splitting) risks._
 
+Unsafe Query Generation
+-----------------------
+
+Due to the way Active Record interprets parameters in combination with the way
+that Rack parses query parameters it was possible to issue unexpected database
+queries with `IS NULL` where clauses. As a response to that security issue
+([CVE-2012-2660](https://groups.google.com/forum/#!searchin/rubyonrails-security/deep_munge/rubyonrails-security/8SA-M3as7A8/Mr9fi9X4kNgJ),
+[CVE-2012-2694](https://groups.google.com/forum/#!searchin/rubyonrails-security/deep_munge/rubyonrails-security/jILZ34tAHF4/7x0hLH-o0-IJ)
+and [CVE-2013-0155](https://groups.google.com/forum/#!searchin/rubyonrails-security/CVE-2012-2660/rubyonrails-security/c7jT-EeN9eI/L0u4e87zYGMJ))
+`deep_munge` method was introduced as a solution to keep Rails secure by default.
+
+Example of vulnerable code that could be used by attacker, if `deep_munge`
+wasn't performed is:
+
+```ruby
+unless params[:token].nil?
+  user = User.find_by_token(params[:token])
+  user.reset_password!
+end
+```
+
+When `params[:token]` is one of: `[]`, `[nil]`, `[nil, nil, ...]` or
+`['foo', nil]` it will bypass the test for `nil`, but `IS NULL` or
+`IN ('foo', NULL)` where clauses still will be added to the SQL query.
+
+To keep rails secure by default, `deep_munge` replaces some of the values with
+`nil`. Below table shows what the parameters look like based on `JSON` sent in
+request:
+
+| JSON                              | Parameters               |
+|-----------------------------------|--------------------------|
+| `{ "person": null }`              | `{ :person => nil }`     |
+| `{ "person": [] }`                | `{ :person => nil }`     |
+| `{ "person": [null] }`            | `{ :person => nil }`     |
+| `{ "person": [null, null, ...] }` | `{ :person => nil }`     |
+| `{ "person": ["foo", null] }`     | `{ :person => ["foo"] }` |
+
+It is possible to return to old behaviour and disable `deep_munge` configuring
+your application if you are aware of the risk and know how to handle it:
+
+```ruby
+config.action_dispatch.perform_deep_munge = false
+```
 
 Default Headers
 ---------------

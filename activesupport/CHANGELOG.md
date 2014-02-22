@@ -1,13 +1,154 @@
+*   Added `Object#present_in` to simplify value whitelisting.
+
+    Before:
+
+        params[:bucket_type].in?(%w( project calendar )) ? params[:bucket_type] : nil
+
+    After:
+
+        params[:bucket_type].present_in %w( project calendar )
+
+    *DHH*
+
+*   Time helpers honor the application time zone when passed a date.
+
+    *Xavier Noria*
+
+*   Fix the implementation of Multibyte::Unicode.tidy_bytes for JRuby
+
+    The existing implementation caused JRuby to raise the error:
+    `Encoding::ConverterNotFoundError: code converter not found (UTF-8 to UTF8-MAC)`
+
+    *Justin Coyne*
+
+*   Fix `to_param` behavior when there are nested empty hashes.
+
+    Before:
+
+        params = {c: 3, d: {}}.to_param # => "&c=3"
+
+    After:
+
+        params = {c: 3, d: {}}.to_param # => "c=3&d="
+
+    Fixes #13892.
+
+    *Hincu Petru*
+
+*   Deprecate custom `BigDecimal` serialization.
+
+    Deprecate the custom `BigDecimal` serialization that is included when requiring
+    `active_support/all` as a fix for #12467. Let Ruby handle YAML serialization
+    for `BigDecimal` instead.
+
+    *David Celis*
+
+*   Fix parsing bugs in `XmlMini`
+
+    Symbols or boolean parsing would raise an error for non string values (e.g.
+    integers). Decimal parsing would fail due to a missing requirement.
+
+    *Birkir A. Barkarson*
+
+*   Maintain the current timezone when calling `wrap_with_time_zone`
+
+    Extend the solution from the fix for #12163 to the general case where `Time`
+    methods are wrapped with a time zone.
+
+    Fixes #12596.
+
+    *Andrew White*
+
+*   Remove behavior that automatically remove the Date/Time stubs, added by `travel`
+    and `travel_to` methods, after each test case.
+
+    Now users have to use the `travel_back` or the block version of `travel` and
+    `travel_to` methods to clean the stubs.
+
+    *Rafael Mendonça França*
+
+*   Add `travel_back` to remove stubs from `travel` and `travel_to`.
+
+    *Rafael Mendonça França*
+
+*   Remove the deprecation about the `#filter` method.
+
+    Filter objects should now rely on method corresponding to the filter type
+    (e.g. `#before`).
+
+    *Aaron Patterson*
+
+*   Add `ActiveSupport::JSON::Encoding.time_precision` as a way to configure the
+    precision of encoded time values:
+
+        Time.utc(2000, 1, 1).as_json                      # => "2000-01-01T00:00:00.000Z"
+        ActiveSupport::JSON::Encoding.time_precision = 0
+        Time.utc(2000, 1, 1).as_json                      # => "2000-01-01T00:00:00Z"
+
+    *Parker Selbert*
+
+*   Maintain the current timezone when calling `change` during DST overlap
+
+    Currently if a time is changed during DST overlap in the autumn then the method
+    `period_for_local` will return the DST period. However if the original time is
+    not DST then this can be surprising and is not what is generally wanted. This
+    commit changes that behavior to maintain the current period if it's in the list
+    of periods returned by `periods_for_local`.
+
+    Fixes #12163.
+
+    *Andrew White*
+
+*   Added `Hash#compact` and `Hash#compact!` for removing items with nil value
+    from hash.
+
+    *Celestino Gomes*
+
+*   Maintain proleptic gregorian in Time#advance
+
+    `Time#advance` uses `Time#to_date` and `Date#advance` to calculate a new date.
+    The `Date` object returned by `Time#to_date` is constructed with the assumption
+    that the `Time` object represents a proleptic gregorian date, but it is
+    configured to observe the default julian calendar reform date (2299161j)
+    for purposes of calculating month, date and year:
+
+        Time.new(1582, 10, 4).to_date.to_s           # => "1582-09-24"
+        Time.new(1582, 10, 4).to_date.gregorian.to_s # => "1582-10-04"
+
+    This patch ensures that when the intermediate `Date` object is advanced
+    to yield a new `Date` object, that the `Time` object for return is constructed
+    with a proleptic gregorian month, date and year.
+
+    *Riley Lynch*
+
+*   `MemCacheStore` should only accept a `Dalli::Client`, or create one.
+
+    *arthurnn*
+
+*   Don't lazy load the `tzinfo` library as it causes problems on Windows.
+
+    Fixes #13553.
+
+    *Andrew White*
+
+*   Use `remove_possible_method` instead of `remove_method` to avoid
+    a `NameError` to be thrown on FreeBSD with the `Date` object.
+
+    *Rafael Mendonça França*, *Robin Dupret*
+
 *   `blank?` and `present?` commit to return singletons.
 
     *Xavier Noria*, *Pavel Pravosud*
 
 *   Fixed Float related error in NumberHelper with large precisions.
 
-    before:
+    Before:
+
         ActiveSupport::NumberHelper.number_to_rounded '3.14159', precision: 50
         #=> "3.14158999999999988261834005243144929409027099609375"
-    after:
+
+    After:
+
         ActiveSupport::NumberHelper.number_to_rounded '3.14159', precision: 50
         #=> "3.14159000000000000000000000000000000000000000000000"
 
@@ -333,19 +474,21 @@
 
     The value of `PER_ENTRY_OVERHEAD` is 240 bytes based on an [empirical
     estimation](https://gist.github.com/ssimeonov/6047200) for 64-bit MRI on
-    1.9.3 and 2.0. GH#11512
+    1.9.3 and 2.0.
+
+    Fixes #11512.
 
     *Simeon Simeonov*
 
 *   Only raise `Module::DelegationError` if it's the source of the exception.
 
-    Fixes #10559
+    Fixes #10559.
 
     *Andrew White*
 
 *   Make `Time.at_with_coercion` retain the second fraction and return local time.
 
-    Fixes #11350
+    Fixes #11350.
 
     *Neer Friedman*, *Andrew White*
 
@@ -411,21 +554,21 @@
 *   Fix return value from `BacktraceCleaner#noise` when the cleaner is configured
     with multiple silencers.
 
-    Fixes #11030
+    Fixes #11030.
 
     *Mark J. Titorenko*
 
 *   `HashWithIndifferentAccess#select` now returns a `HashWithIndifferentAccess`
     instance instead of a `Hash` instance.
 
-    Fixes #10723
+    Fixes #10723.
 
     *Albert Llop*
 
 *   Add `DateTime#usec` and `DateTime#nsec` so that `ActiveSupport::TimeWithZone` keeps
     sub-second resolution when wrapping a `DateTime` value.
 
-    Fixes #10855
+    Fixes #10855.
 
     *Andrew White*
 
@@ -441,7 +584,7 @@
 *   Prevent side effects to hashes inside arrays when
     `Hash#with_indifferent_access` is called.
 
-    Fixes #10526
+    Fixes #10526.
 
     *Yves Senn*
 
